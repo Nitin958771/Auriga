@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  ATTENDANT
+}
+
+enum SpotType {
+  COMPACT
+  STANDARD
+  EV
+}
+
+enum SpotStatus {
+  AVAILABLE
+  OCCUPIED
+}
+
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  passwordHash String
+  role         UserRole
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Garage {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  levels Level[]
+}
+
+model Level {
+  id          String   @id @default(uuid())
+  garageId    String
+  levelNumber Int
+  name        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  garage Garage        @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  spots  ParkingSpot[]
+
+  @@unique([garageId, levelNumber])
+}
+
+model ParkingSpot {
+  id         String     @id @default(uuid())
+  levelId    String
+  spotNumber String
+  spotType   SpotType
+  status     SpotStatus @default(AVAILABLE)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  level    Level            @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  sessions ParkingSession[]
+
+  @@unique([levelId, spotNumber])
+}
+
+model RateCard {
+  id                 String   @id @default(uuid())
+  spotType           SpotType
+  firstHourRate      Decimal  @db.Decimal(10, 2)
+  additionalHourRate Decimal  @db.Decimal(10, 2)
+  dailyCap           Decimal  @db.Decimal(10, 2)
+  effectiveFrom      DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([spotType])
+}
+
+model ParkingSession {
+  id         String        @id @default(uuid())
+  plate      String
+  spotId     String
+  entryTime  DateTime
+  exitTime   DateTime?
+  fee        Decimal?      @db.Decimal(10, 2)
+  status     SessionStatus @default(ACTIVE)
+  autoClosed Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  spot ParkingSpot @relation(fields: [spotId], references: [id])
+
+  @@index([plate])
+  @@index([status])
+  @@index([entryTime])
+  @@index([spotId])
+  // Note: Partial unique indexes (e.g., active session per plate/spot) 
+  // will be created via a custom SQL migration.
+}
